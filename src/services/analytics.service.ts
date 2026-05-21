@@ -193,7 +193,7 @@ export const summaryAnalyticsService = async (
 
     const [previous] = await TransactionModel.aggregate(prevPeriodPipeline);
 
-    console.log(previous, "Prvious Data");
+    
     if (previous) {
       const prevIncome = previous.totalIncome || 0;
       const prevExpenses = previous.totalExpenses || 0;
