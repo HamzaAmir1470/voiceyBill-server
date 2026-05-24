@@ -207,7 +207,7 @@ export const deleteTransactionService = async (
   userId: string,
   transactionId: string,
 ) => {
-  const deleted = await TransactionModel.findByIdAndDelete({
+  const deleted = await TransactionModel.findOneAndDelete({
     _id: transactionId,
     userId,
   });
