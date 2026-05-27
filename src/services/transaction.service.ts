@@ -435,7 +435,9 @@ export const scanReceiptService = async (
     }
     
     // Fetch the image from Cloudinary and convert to base64
-    const response = await fetch(file.path);
+    const urlObj = new URL(file.path);
+    const cloudinaryUrl = `https://res.cloudinary.com${urlObj.pathname}${urlObj.search}`;
+    const response = await fetch(cloudinaryUrl);
     const arrayBuffer = await response.arrayBuffer();
     const base64String = Buffer.from(arrayBuffer).toString("base64");
     const mimeType = file.mimetype || "image/jpeg";
