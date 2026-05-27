@@ -47,7 +47,7 @@ export class ExchangeRateService {
       }
     } catch (error: any) {
       console.warn(
-        `Live exchange rate fetch failed (${fromUpper}->${toUpper}):`,
+        `Live exchange rate fetch failed`,
         error.message,
       );
     }
