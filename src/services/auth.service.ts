@@ -17,7 +17,7 @@ import {
 import ReportSettingModel, {
   ReportFrequencyEnum,
 } from "../models/report-setting.model";
-import { calulateNextReportDate } from "../utils/helper";
+import { calculateNextReportDate } from "../utils/helper";
 import { signJwtToken } from "../utils/jwt";
 import { ErrorCodeEnum } from "../enums/error-code.enum";
 import {
@@ -50,7 +50,7 @@ const createDefaultReportSetting = async (
     userId,
     frequency: ReportFrequencyEnum.MONTHLY,
     isEnabled: true,
-    nextReportDate: calulateNextReportDate(),
+    nextReportDate: calculateNextReportDate(),
     lastSentDate: null,
   });
 
