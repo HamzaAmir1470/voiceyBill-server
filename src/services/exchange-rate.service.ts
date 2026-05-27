@@ -79,7 +79,7 @@ export class ExchangeRateService {
     }
 
     throw new Error(
-      `Exchange rate unavailable for ${fromUpper} to ${toUpper}. No live or cached rate found.`,
+      `Exchange rate unavailable. No live or cached rate found.`,
     );
   }
 
