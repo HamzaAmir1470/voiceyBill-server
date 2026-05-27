@@ -9,6 +9,7 @@ import {
 } from "../validators/transaction.validator";
 import { openai, openAIModel } from "../config/openai.config";
 import { receiptPrompt } from "../utils/prompt";
+import { resolveUserCurrencyConversion } from "./currency-conversion.service";
 
 /**
  * Sanitize and validate pagination inputs to prevent abuse and crashes
@@ -96,11 +97,23 @@ export const createTransactionService = async (
         : calulatedDate;
   }
 
+  const currencyFields = await resolveUserCurrencyConversion(
+    userId,
+    Number(body.amount),
+    body.currency,
+  );
+
   const transaction = await TransactionModel.create({
     ...body,
     userId,
     category: body.category,
-    amount: Number(body.amount),
+    amount: currencyFields.amount,
+    originalAmount: currencyFields.originalAmount,
+    originalCurrency: currencyFields.originalCurrency,
+    baseCurrencyAtTime: currencyFields.baseCurrencyAtTime,
+    exchangeRate: currencyFields.exchangeRate,
+    rateSource: currencyFields.rateSource,
+    exchangeRateFetchedAt: currencyFields.exchangeRateFetchedAt,
     isRecurring: body.isRecurring || false,
     recurringInterval: body.recurringInterval || null,
     nextRecurringDate,
@@ -267,13 +280,41 @@ export const updateTransactionService = async (
         : calulatedDate;
   }
 
+  let currencyUpdate: Record<string, any> = {};
+  if (body.amount !== undefined || body.currency !== undefined) {
+    const inputAmount =
+      body.amount !== undefined
+        ? Number(body.amount)
+        : existingTransaction.originalAmount ?? existingTransaction.amount;
+    const inputCurrency =
+      body.currency ||
+      existingTransaction.originalCurrency ||
+      existingTransaction.baseCurrencyAtTime ||
+      undefined;
+    const currencyFields = await resolveUserCurrencyConversion(
+      userId,
+      inputAmount,
+      inputCurrency,
+    );
+
+    currencyUpdate = {
+      amount: currencyFields.amount,
+      originalAmount: currencyFields.originalAmount,
+      originalCurrency: currencyFields.originalCurrency,
+      baseCurrencyAtTime: currencyFields.baseCurrencyAtTime,
+      exchangeRate: currencyFields.exchangeRate,
+      rateSource: currencyFields.rateSource,
+      exchangeRateFetchedAt: currencyFields.exchangeRateFetchedAt,
+    };
+  }
+
   existingTransaction.set({
     ...(body.title && { title: body.title }),
     ...(body.description && { description: body.description }),
     ...(body.category && { category: body.category }),
     ...(body.type && { type: body.type }),
     ...(body.paymentMethod && { paymentMethod: body.paymentMethod }),
-    ...(body.amount !== undefined && { amount: Number(body.amount) }),
+    ...currencyUpdate,
     date,
     isRecurring,
     recurringInterval,
@@ -325,20 +366,37 @@ export const bulkTransactionService = async (
   transactions: CreateTransactionType[],
 ) => {
   try {
-    const bulkOps = transactions.map((tx) => ({
-      insertOne: {
-        document: {
-          ...tx,
+    const bulkOps = await Promise.all(
+      transactions.map(async (tx) => {
+        const currencyFields = await resolveUserCurrencyConversion(
           userId,
-          isRecurring: false,
-          nextRecurringDate: null,
-          recurringInterval: null,
-          lastProcesses: null,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        },
-      },
-    }));
+          Number(tx.amount),
+          tx.currency,
+        );
+
+        return {
+          insertOne: {
+            document: {
+              ...tx,
+              userId,
+              amount: currencyFields.amount,
+              originalAmount: currencyFields.originalAmount,
+              originalCurrency: currencyFields.originalCurrency,
+              baseCurrencyAtTime: currencyFields.baseCurrencyAtTime,
+              exchangeRate: currencyFields.exchangeRate,
+              rateSource: currencyFields.rateSource,
+              exchangeRateFetchedAt: currencyFields.exchangeRateFetchedAt,
+              isRecurring: false,
+              nextRecurringDate: null,
+              recurringInterval: null,
+              lastProcesses: null,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            },
+          },
+        };
+      }),
+    );
 
     const result = await TransactionModel.bulkWrite(bulkOps, {
       ordered: true,
@@ -392,6 +450,12 @@ export const scanReceiptService = async (
     if (!data.amount || !data.date) {
       return { error: "Receipt missing required information" };
     }
+    const currency =
+      typeof data.currency === "string" &&
+      data.currency.trim().toUpperCase() !== "DEFAULT" &&
+      data.currency.trim().length === 3
+        ? data.currency.trim().toUpperCase()
+        : undefined;
 
     return {
       title: data.title || "Receipt",
@@ -401,6 +465,7 @@ export const scanReceiptService = async (
       category: data.category,
       paymentMethod: data.paymentMethod,
       type: data.type,
+      currency,
       receiptUrl: file.path,
     };
   } catch (error) {
