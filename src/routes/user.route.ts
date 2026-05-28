@@ -1,5 +1,6 @@
 import { Router } from "express";
 import {
+  changePasswordController,
   getCurrentUserController,
   updateUserController,
 } from "../controllers/user.controller";
@@ -13,5 +14,6 @@ userRoutes.put(
   upload.single("profilePicture"),
   updateUserController
 );
+userRoutes.put("/change-password", changePasswordController);
 
 export default userRoutes;
