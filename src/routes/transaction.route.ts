@@ -9,6 +9,7 @@ import {
   getTransactionByIdController,
   scanReceiptController,
   updateTransactionController,
+  getTransactionExportController,
 } from "../controllers/transaction.controller";
 import { upload } from "../config/cloudinary.config";
 
@@ -27,6 +28,7 @@ transactionRoutes.post("/bulk-transaction", bulkTransactionController);
 transactionRoutes.put("/duplicate/:id", duplicateTransactionController);
 transactionRoutes.put("/update/:id", updateTransactionController);
 
+transactionRoutes.get("/export", getTransactionExportController);
 transactionRoutes.get("/all", getAllTransactionController);
 transactionRoutes.get("/:id", getTransactionByIdController);
 transactionRoutes.delete("/delete/:id", deleteTransactionController);
