@@ -1,3 +1,5 @@
+import ExcelJS from "exceljs";
+import type { Row, Cell } from "exceljs";
 import TransactionModel, {
   TransactionTypeEnum,
 } from "../models/transaction.model";
@@ -20,7 +22,7 @@ import { resolveCurrencyConversion } from "./currency-conversion.service";
  */
 const sanitizeAndValidatePagination = (
   pageSize: unknown,
-  pageNumber: unknown
+  pageNumber: unknown,
 ): { pageSize: number; pageNumber: number } => {
   const MAX_PAGE_SIZE = 100;
   const MAX_PAGE_NUMBER = 1000;
@@ -30,25 +32,16 @@ const sanitizeAndValidatePagination = (
   const parsedPageNumber = Number(pageNumber);
 
   // validate pageSize
-  if (
-    !Number.isFinite(parsedPageSize) ||
-    !Number.isInteger(parsedPageSize)
-  ) {
-    throw new BadRequestException(
-      "pageSize must be a valid integer"
-    );
+  if (!Number.isFinite(parsedPageSize) || !Number.isInteger(parsedPageSize)) {
+    throw new BadRequestException("pageSize must be a valid integer");
   }
 
   if (parsedPageSize <= 0) {
-    throw new BadRequestException(
-      "pageSize must be greater than 0"
-    );
+    throw new BadRequestException("pageSize must be greater than 0");
   }
 
   if (parsedPageSize > MAX_PAGE_SIZE) {
-    throw new BadRequestException(
-      `pageSize cannot exceed ${MAX_PAGE_SIZE}`
-    );
+    throw new BadRequestException(`pageSize cannot exceed ${MAX_PAGE_SIZE}`);
   }
 
   // validate pageNumber
@@ -56,20 +49,16 @@ const sanitizeAndValidatePagination = (
     !Number.isFinite(parsedPageNumber) ||
     !Number.isInteger(parsedPageNumber)
   ) {
-    throw new BadRequestException(
-      "pageNumber must be a valid integer"
-    );
+    throw new BadRequestException("pageNumber must be a valid integer");
   }
 
   if (parsedPageNumber <= 0) {
-    throw new BadRequestException(
-      "pageNumber must be greater than 0"
-    );
+    throw new BadRequestException("pageNumber must be greater than 0");
   }
 
   if (parsedPageNumber > MAX_PAGE_NUMBER) {
     throw new BadRequestException(
-      `pageNumber cannot exceed ${MAX_PAGE_NUMBER}`
+      `pageNumber cannot exceed ${MAX_PAGE_NUMBER}`,
     );
   }
 
@@ -164,7 +153,7 @@ export const getAllTransactionService = async (
   // Sanitize pagination inputs to prevent abuse and invalid queries
   const { pageSize, pageNumber } = sanitizeAndValidatePagination(
     pagination.pageSize,
-    pagination.pageNumber
+    pagination.pageNumber,
   );
 
   // SAFE skip (now guaranteed valid)
@@ -286,7 +275,7 @@ export const updateTransactionService = async (
     const inputAmount =
       body.amount !== undefined
         ? Number(body.amount)
-        : existingTransaction.originalAmount ?? existingTransaction.amount;
+        : (existingTransaction.originalAmount ?? existingTransaction.amount);
     const inputCurrency =
       body.currency ||
       existingTransaction.originalCurrency ||
@@ -369,7 +358,7 @@ export const bulkTransactionService = async (
   try {
     const user = await UserModel.findById(userId).select("baseCurrency").lean();
     const baseCurrency = user?.baseCurrency || "USD";
-    
+
     const bulkOps = await Promise.all(
       transactions.map(async (tx) => {
         const currencyFields = await resolveCurrencyConversion(
@@ -424,8 +413,8 @@ export const scanReceiptService = async (
 
   try {
     if (!file.path) {
-    throw new BadRequestException("Failed to upload file");
-    } 
+      throw new BadRequestException("Failed to upload file");
+    }
     const result = await openai.chat.completions.create({
       model: openAIModel,
       messages: [
@@ -465,7 +454,7 @@ export const scanReceiptService = async (
         ? data.category.toLowerCase().trim()
         : "other";
 
-      const allowedCategories = [
+    const allowedCategories = [
       "groceries",
       "dining & restaurants",
       "transportation",
@@ -502,4 +491,58 @@ export const scanReceiptService = async (
     console.error("Receipt Scan Error:", error);
     throw new BadRequestException("Receipt scanning service unavailable");
   }
+};
+
+export const exportTransactionsService = async (userId: string) => {
+  const transactions = await TransactionModel.find({ userId }).lean();
+
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet("Transactions");
+
+  // Columns
+  sheet.columns = [
+    { header: "Title", key: "title", width: 25 },
+    { header: "Amount", key: "amount", width: 15 },
+    { header: "Type", key: "type", width: 15 },
+    { header: "Category", key: "category", width: 20 },
+    { header: "Date", key: "date", width: 25 },
+    { header: "Payment Method", key: "paymentMethod", width: 20 },
+    { header: "Description", key: "description", width: 30 },
+    { header: "Recurring", key: "recurring", width: 15 },
+    { header: "Created At", key: "createdAt", width: 25 },
+  ];
+
+  // Header styling 
+  sheet.getRow(1).eachCell((cell) => {
+    cell.font = { bold: true };
+    cell.alignment = { horizontal: "center", vertical: "middle" };
+  });
+
+  // Rows
+  transactions.forEach((t) => {
+    sheet.addRow({
+      title: t.title,
+      amount: t.amount,
+      type: t.type,
+      category: t.category,
+      date: t.date ? new Date(t.date).toISOString() : "",
+      paymentMethod: t.paymentMethod,
+      description: t.description,
+      recurring: t.isRecurring ? "Yes" : "No",
+      createdAt: t.createdAt ? new Date(t.createdAt).toISOString() : "",
+    });
+  });
+
+  // Center ALL cells
+  sheet.eachRow((row) => {
+    row.eachCell((cell) => {
+      cell.alignment = {
+        horizontal: "center",
+        vertical: "middle",
+      };
+    });
+  });
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  return buffer;
 };
