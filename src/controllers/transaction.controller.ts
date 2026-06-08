@@ -18,10 +18,9 @@ import {
   getTransactionByIdService,
   scanReceiptService,
   updateTransactionService,
-  exportTransactionsService,
 } from "../services/transaction.service";
 import { TransactionTypeEnum } from "../models/transaction.model";
-import Transaction from "../models/transaction.model";
+// import Transaction from "../models/transaction.model";
 
 export const createTransactionController = asyncHandler(
   async (req: Request, res: Response) => {
@@ -160,31 +159,5 @@ export const scanReceiptController = asyncHandler(
       message: "Receipt scanned successfully",
       data: result,
     });
-  },
-);
-
-export const getTransactionExportController = asyncHandler(
-  async (req: Request, res: Response) => {
-    const userId = req.user?._id;
-
-    if (!userId) {
-      return res.status(HTTPSTATUS.BAD_REQUEST).json({
-        message: "User ID is required",
-      });
-    }
-
-    const buffer = await exportTransactionsService(userId);
-
-    res.setHeader(
-      "Content-Type",
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    );
-
-    res.setHeader(
-      "Content-Disposition",
-      "attachment; filename=transactions.xlsx",
-    );
-
-    return res.status(HTTPSTATUS.OK).send(buffer);
   },
 );
